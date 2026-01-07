@@ -1,4 +1,4 @@
-package top.next.example
+package example
 
 default allow = false
 

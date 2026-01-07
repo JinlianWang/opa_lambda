@@ -1,0 +1,160 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'OPA Lambda Function for Policy Evaluation'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    Description: Environment name (e.g., dev, staging, prod)
+
+  FunctionName:
+    Type: String
+    Default: opa-lambda
+    Description: Name of the Lambda function
+
+  S3BucketName:
+    Type: String
+    Description: Name for the S3 bucket to store policy files (leave empty to auto-generate)
+    Default: ''
+
+  ArtifactBucketName:
+    Type: String
+    Description: Existing S3 bucket containing the Lambda deployment package
+    Default: opa-lambda-test-2026-s3
+
+  ArtifactObjectKey:
+    Type: String
+    Description: S3 object key for the Lambda deployment package
+    Default: lambda-deployment.zip
+
+  EnableXRayTracing:
+    Type: String
+    Default: 'false'
+    AllowedValues: ['true', 'false']
+    Description: Enable AWS X-Ray tracing
+
+Conditions:
+  CreateS3Bucket: !Equals [!Ref S3BucketName, '']
+  EnableTracing: !Equals [!Ref EnableXRayTracing, 'true']
+
+Resources:
+  # S3 Bucket for Policy Files
+  PolicyBucket:
+    Type: AWS::S3::Bucket
+    Condition: CreateS3Bucket
+    Properties:
+      BucketName: !Sub '${FunctionName}-policies-${Environment}-${AWS::AccountId}'
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      VersioningConfiguration:
+        Status: Enabled
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # IAM Role for Lambda Execution
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${FunctionName}-execution-role-${Environment}'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: 'sts:AssumeRole'
+      ManagedPolicyArns:
+        - 'arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'
+        - !If
+          - EnableTracing
+          - 'arn:aws:iam::aws:policy/AWSXRayDaemonWriteAccess'
+          - !Ref AWS::NoValue
+      Policies:
+        - PolicyName: S3PolicyAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 's3:GetObject'
+                  - 's3:ListBucket'
+                Resource:
+                  - !If
+                    - CreateS3Bucket
+                    - !GetAtt PolicyBucket.Arn
+                    - !Sub 'arn:aws:s3:::${S3BucketName}'
+                  - !If
+                    - CreateS3Bucket
+                    - !Sub '${PolicyBucket.Arn}/*'
+                    - !Sub 'arn:aws:s3:::${S3BucketName}/*'
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Lambda Function
+  OPALambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub '${FunctionName}-${Environment}'
+      Runtime: provided.al2023
+      Handler: bootstrap
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Code:
+        S3Bucket: !Ref ArtifactBucketName
+        S3Key: !Ref ArtifactObjectKey
+      MemorySize: 512
+      Timeout: 30
+      Environment:
+        Variables:
+          S3_BUCKET: !If
+            - CreateS3Bucket
+            - !Ref PolicyBucket
+            - !Ref S3BucketName
+      TracingConfig:
+        Mode: !If [EnableTracing, 'Active', 'PassThrough']
+      Tags:
+        - Key: Environment
+          Value: !Ref Environment
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # CloudWatch Log Group
+  LambdaLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${FunctionName}-${Environment}'
+      RetentionInDays: 14
+
+Outputs:
+  FunctionName:
+    Description: Lambda Function Name
+    Value: !Ref OPALambdaFunction
+    Export:
+      Name: !Sub '${AWS::StackName}-FunctionName'
+
+  FunctionArn:
+    Description: Lambda Function ARN
+    Value: !GetAtt OPALambdaFunction.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-FunctionArn'
+
+  PolicyBucketName:
+    Description: S3 Bucket for Policy Files
+    Value: !If
+      - CreateS3Bucket
+      - !Ref PolicyBucket
+      - !Ref S3BucketName
+    Export:
+      Name: !Sub '${AWS::StackName}-PolicyBucket'
+
+  ExecutionRoleArn:
+    Description: Lambda Execution Role ARN
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-ExecutionRoleArn'

@@ -73,6 +73,36 @@ func TestLoadItemS3(t *testing.T) {
 	s3Client.AssertExpectations(t)
 }
 
+func TestLoadItemS3_Cache(t *testing.T) {
+	s3Client := new(mockS3Client)
+	loader := policyloader.NewS3PolicyLoaderWithClient(s3Client, "test-bucket")
+
+	policyName := "cached-policy"
+	policyContent := "package cached\nallow = true"
+
+	inputObject := &s3.GetObjectInput{
+		Bucket: aws.String("test-bucket"),
+		Key:    aws.String(policyName + ".rego"),
+	}
+
+	outputObject := &s3.GetObjectOutput{
+		Body: ioutil.NopCloser(strings.NewReader(policyContent)),
+	}
+
+	// Expect a single S3 call; the second LoadPolicy should be served from cache.
+	s3Client.On("GetObjectWithContext", mock.Anything, inputObject).Return(outputObject, nil).Once()
+
+	content, err := loader.LoadPolicy(context.Background(), policyName)
+	assert.NoError(t, err)
+	assert.Equal(t, policyContent, content)
+
+	content, err = loader.LoadPolicy(context.Background(), policyName)
+	assert.NoError(t, err)
+	assert.Equal(t, policyContent, content)
+
+	s3Client.AssertExpectations(t)
+}
+
 func TestLoadItemS3_Error(t *testing.T) {
 	s3Client := new(mockS3Client)
 	loader := policyloader.NewS3PolicyLoaderWithClient(s3Client, "test-bucket")

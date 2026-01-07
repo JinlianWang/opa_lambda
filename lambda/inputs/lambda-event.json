@@ -1,0 +1,11 @@
+{
+  "policy": "example",
+  "payload": {
+    "membership": {
+      "user": {
+        "login": "jane",
+        "mail": "jane@example.com"
+      }
+    }
+  }
+}

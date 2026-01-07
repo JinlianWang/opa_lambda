@@ -71,3 +71,4 @@ terraform.rc
 lambda/covprofile
 lambda/bootstrap
 lambda.zip
+lambda-deployment.zip

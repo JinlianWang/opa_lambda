@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"os"
+	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -18,6 +19,8 @@ import (
 type S3PolicyLoader struct {
 	bucketName string
 	s3Client   s3iface.S3API
+	mu         sync.RWMutex
+	cache      map[string]string
 }
 
 // NewS3PolicyLoader creates a new S3PolicyLoader.
@@ -35,6 +38,7 @@ func NewS3PolicyLoader(bucketName string) (*S3PolicyLoader, error) {
 	return &S3PolicyLoader{
 		bucketName: bucketName,
 		s3Client:   s3Client,
+		cache:      make(map[string]string),
 	}, nil
 }
 
@@ -43,6 +47,7 @@ func NewS3PolicyLoaderWithClient(s3Client s3iface.S3API, bucketName string) *S3P
 	return &S3PolicyLoader{
 		bucketName: bucketName,
 		s3Client:   s3Client,
+		cache:      make(map[string]string),
 	}
 }
 
@@ -52,6 +57,14 @@ func (loader *S3PolicyLoader) LoadPolicy(ctx context.Context, policyName string)
 	if err != nil {
 		return "", err
 	}
+
+	// Serve from in-memory cache when available to avoid repeated S3 calls on warm invocations.
+	loader.mu.RLock()
+	if cached, ok := loader.cache[policyName]; ok {
+		loader.mu.RUnlock()
+		return cached, nil
+	}
+	loader.mu.RUnlock()
 
 	input := &s3.GetObjectInput{
 		Bucket: aws.String(loader.bucketName),
@@ -71,5 +84,12 @@ func (loader *S3PolicyLoader) LoadPolicy(ctx context.Context, policyName string)
 		return "", errors.New("failed to read policy content from S3")
 	}
 
-	return string(content), nil
+	policy := string(content)
+
+	// Cache the freshly fetched policy for subsequent invocations.
+	loader.mu.Lock()
+	loader.cache[policyName] = policy
+	loader.mu.Unlock()
+
+	return policy, nil
 }
