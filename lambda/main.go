@@ -302,16 +302,13 @@ func isAPIGatewayV2Event(payload json.RawMessage) bool {
 	var probe struct {
 		Version        string `json:"version"`
 		RawPath        string `json:"rawPath"`
-		RequestContext struct {
-			ApiID string `json:"apiId"`
-		} `json:"requestContext"`
 	}
 
 	if err := json.Unmarshal(payload, &probe); err != nil {
 		return false
 	}
 
-	return probe.Version == "2.0" || probe.RawPath != "" || probe.RequestContext.ApiID != ""
+	return probe.Version == "2.0" || probe.RawPath != ""
 }
 
 // Handle requests when testing locally.
