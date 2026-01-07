@@ -1,0 +1,15 @@
+{
+  "version": "2.0",
+  "routeKey": "POST /opa",
+  "rawPath": "/opa",
+  "rawQueryString": "",
+  "headers": {
+    "content-type": "application/json"
+  },
+  "isBase64Encoded": false,
+  "body": "{\"policy\":\"example\",\"payload\":{\"membership\":{\"user\":{\"login\":\"alice\",\"mail\":\"alice@example.com\"}}}}",
+  "requestContext": {
+    "apiId": "def456",
+    "stage": "$default"
+  }
+}

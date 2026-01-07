@@ -1,0 +1,11 @@
+{
+  "requestContext": {
+    "elb": {
+      "targetGroupArn": "arn:aws:elasticloadbalancing:us-east-1:123456789012:targetgroup/opa-alb/abcdef123456"
+    }
+  },
+  "httpMethod": "POST",
+  "path": "/opa",
+  "isBase64Encoded": false,
+  "body": "{\"policy\":\"example\",\"payload\":{\"membership\":{\"user\":{\"login\":\"alice\",\"mail\":\"alice@example.com\"}}}}"
+}

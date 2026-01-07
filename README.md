@@ -274,6 +274,41 @@ Once deployed, invoke the Lambda function with this payload structure (see `lamb
 - `policy`: The policy name (e.g., `example`, `auth.user`)
 - `payload`: The input data to evaluate against the policy
 
+### Testing HTTP Integrations (ALB / API Gateway)
+
+The Lambda handler can now sit behind an AWS Application Load Balancer or either version of API Gateway. Sample event payloads are available under `lambda/inputs/`:
+
+- `alb-event.json`
+- `apigw-proxy-event.json` (REST/API Gateway v1)
+- `apigw-v2-event.json` (HTTP/API Gateway v2)
+
+Each sample event wraps the same OPA request body that the Lambda expects (`{"policy":"example", ...}`). To simulate the different integrations without deploying infrastructure, update the sample files as needed and invoke the function directly:
+
+```sh
+# Example: simulate an ALB target invocation
+aws lambda invoke \
+  --function-name opa-lambda-dev \
+  --cli-binary-format raw-in-base64-out \
+  --payload fileb://lambda/inputs/alb-event.json \
+  response.json
+
+# Example: simulate API Gateway REST (v1) proxy
+aws lambda invoke \
+  --function-name opa-lambda-dev \
+  --cli-binary-format raw-in-base64-out \
+  --payload fileb://lambda/inputs/apigw-proxy-event.json \
+  response.json
+
+# Example: simulate API Gateway HTTP (v2)
+aws lambda invoke \
+  --function-name opa-lambda-dev \
+  --cli-binary-format raw-in-base64-out \
+  --payload fileb://lambda/inputs/apigw-v2-event.json \
+  response.json
+```
+
+All three events set `isBase64Encoded` to `false`. If your ALB or API Gateway stage base64-encodes the body, flip the flag to `true` and base64 encode the `body` string before invoking. The Lambda response will mirror the integration you simulated (ALB target response, API Gateway proxy response, or the direct JSON structure).
+
 ## Local Development
 
 ### Policy Naming Convention

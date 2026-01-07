@@ -1,0 +1,14 @@
+{
+  "resource": "/opa",
+  "path": "/opa",
+  "httpMethod": "POST",
+  "headers": {
+    "content-type": "application/json"
+  },
+  "isBase64Encoded": false,
+  "body": "{\"policy\":\"example\",\"payload\":{\"membership\":{\"user\":{\"login\":\"alice\",\"mail\":\"alice@example.com\"}}}}",
+  "requestContext": {
+    "apiId": "abc123",
+    "stage": "dev"
+  }
+}
