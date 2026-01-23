@@ -358,6 +358,30 @@ cd lambda
 go test ./...
 ```
 
+### Loading Policies via Policy Service API
+
+Configure these variables to fetch individual `.rego` files from an HTTPS policy service instead of S3/local disk:
+
+- `POLICY_SERVICE_URL` (required): Base URL (e.g., `https://example.com/service/v1`).
+- `POLICY_RESOURCE_PREFIX`: Prepended to each policy path; defaults to `policies` so the loader requests `policies/<policy>.rego`.
+- `POLICY_BEARER_TOKEN`: Optional bearer token for `Authorization` headers.
+- `POLICY_PERSIST`: Defaults to `true`. When enabled, fetched policies are cached under `/tmp/.opa/policies/` and reused across cold starts.
+- `POLICY_POLL_MIN_SECONDS` / `POLICY_POLL_MAX_SECONDS`: Refresh window (default 10s / 30s). Each policy revalidates with `If-None-Match` using the last `ETag`.
+- `POLICY_HTTP_TIMEOUT_SECONDS`: HTTP client timeout (default 15s).
+- `POLICY_CACHE_DIR`: Custom cache directory (useful locally).
+
+Example local invocation:
+
+```sh
+cd lambda
+POLICY_SERVICE_URL=https://opa.example.com/service/v1 \
+POLICY_RESOURCE_PREFIX=policies \
+POLICY_BEARER_TOKEN=$(aws secretsmanager get-secret-value --secret-id opa-policy-token --query SecretString --output text) \
+cat inputs/example-input.json | go run main.go example
+```
+
+When the service returns `304 Not Modified`, the cached `.rego` text is reused automatically. Leave the policy service variables unset to continue loading files directly from S3 (`S3_BUCKET`) or the local filesystem.
+
 ## Project Structure
 
 ```

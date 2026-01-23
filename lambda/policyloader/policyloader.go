@@ -15,6 +15,12 @@ func NewPolicyLoader(ctx context.Context) (PolicyLoader, error) {
 	var loader PolicyLoader
 	var err error
 
+	if cfg, cfgErr := newPolicyServiceConfigFromEnv(); cfgErr != nil {
+		return nil, cfgErr
+	} else if cfg != nil {
+		return NewPolicyServiceLoader(*cfg)
+	}
+
 	if bucketName := os.Getenv("S3_BUCKET"); bucketName != "" {
 		loader, err = NewS3PolicyLoader(bucketName)
 	} else {
