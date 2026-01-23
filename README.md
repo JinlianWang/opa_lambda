@@ -4,6 +4,18 @@ This Lambda function evaluates JSON objects against [Open Policy Agent's (OPA)](
 
 The function is designed for high throughput, low latency policy evaluation.
 
+## Policy Service API
+
+In addition to pulling policies from S3 you can point the Lambda at an external HTTP "policy service" by setting the `POLICY_SERVICE_URL` environment variable. The service only needs to support simple authenticated `GET` requests for individual `.rego` files, which allows teams to front the policies with their own build/publish pipeline.
+
+- **Request shape** – The Lambda asks for `GET {POLICY_SERVICE_URL}/{POLICY_RESOURCE_PREFIX?}/{policy-path}.rego`. Policy names use dotted notation in evaluation payloads (for example `auth.user`). The loader converts dots to `/`, so the service must return `policies/auth/user.rego` from storage when it receives `/policies/auth/user.rego`.
+- **Authentication** – If `POLICY_BEARER_TOKEN` is set the Lambda sends `Authorization: Bearer <token>` with every request. Reuse whatever authN/Z mechanism you prefer on the service side.
+- **Caching contract** – The loader sends `If-None-Match` with the previously returned `ETag`. Reply with `304 Not Modified` when the policy has not changed so the Lambda can continue using the in-memory copy without re-downloading data. When the file changes, return `200 OK` together with the new policy body and a unique `ETag` value. Strong ETags (e.g., a sha256 digest) work best because identical content will be reused even if the policy is requested from another cold start.
+- **Cache persistence** – When `POLICY_PERSIST=true` (default) the Lambda saves downloaded files to `POLICY_CACHE_DIR` or `~/.opa/policies` inside `/tmp`. This makes the function resilient to policy-service interruptions. Keep responses small enough to fit within the `/tmp` quota (512 MB in Lambda) and rely on the `POLICY_POLL_MIN_SECONDS`/`POLICY_POLL_MAX_SECONDS` env vars to tune how often the loader revalidates the cache.
+- **Error handling** – Return `404` if a policy does not exist. Any other `4xx/5xx` code causes the Lambda to log the failure and, if possible, fall back to the cached version. Keep responses concise; the loader logs up to 1 KB of the response body for debugging.
+
+This contract is intentionally minimal so you can implement the policy service in any language or platform (API Gateway + Lambda, ECS, on-prem, etc.). As long as it serves `.rego` files over HTTPS and provides consistent `ETag` headers, the Lambda can safely cache and revalidate policies without extra coordination.
+
 ## Credits
 
 This project is a fork of [proactiveops/opa_lambda](https://github.com/proactiveops/opa_lambda). The original project was created by Proactive Ops and provided the foundational implementation. This fork includes modifications and enhancements, and AWS CloudFormation deployment and improved documentation.
